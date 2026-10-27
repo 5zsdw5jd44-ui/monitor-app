@@ -318,7 +318,9 @@ function validate(search, others) {
     }
   }
   const cabins = activeCabins(search);
-  if (!cabins.length) return ["cabins", "Ligue pelo menos uma classe."];
+  if (!cabins.length) return ["cabins", "Ligue uma classe."];
+  // One cabin per search keeps the SerpApi cost per search at 1 a date pair.
+  if (cabins.length > 1) return ["cabins", "Escolha só uma classe por busca (crie outra busca para outra classe)."];
   for (const cabin of cabins) {
     const options = search.cabins[cabin.key];
     if (!(Number(options.max_brl) > 0)) return [`${cabin.key}_max`, `${cabin.label}: informe o preço máximo.`];
@@ -395,7 +397,7 @@ function resultsHtml(search) {
   const result = latestResult(search);
   if (!result) return `<div class="results"><div class="results-head">Ainda não verificada.</div></div>`;
   const when = result.when ? formatWhen(result.when) : "";
-  const offers = result.offers.slice(0, 3).map((offer) => {
+  const offers = result.offers.slice(0, 2).map((offer) => {
     const body = `
       <span class="result-price">${formatBRL(offer.preco)}</span>
       <span class="result-info">${escapeHtml(offer.classe)} · ${escapeHtml(offer.companhias)}<br>${formatDate(offer.ida, false)} a ${formatDate(offer.volta)}</span>
@@ -404,7 +406,7 @@ function resultsHtml(search) {
       ? `<a class="result" href="${escapeHtml(offer.link)}" target="_blank" rel="noopener">${body}</a>`
       : `<div class="result">${body}</div>`;
   });
-  const extra = result.offers.length > 3 ? `<div class="results-head">+ ${result.offers.length - 3} oferta(s) no e-mail.</div>` : "";
+  const extra = result.offers.length > 2 ? `<div class="results-head">+ ${result.offers.length - 2} oferta(s) no e-mail.</div>` : "";
   return `
     <div class="results">
       <div class="results-head">Última verificação: ${when}</div>
@@ -873,10 +875,17 @@ function bind() {
       updateEstimate();
     }),
   );
+  // The cabin switches work like radio buttons: turning one on turns the others off.
   $("#cabins").addEventListener("change", (event) => {
-    if (event.target.type === "checkbox") {
-      event.target.closest(".cabin").dataset.on = String(event.target.checked);
+    if (event.target.type !== "checkbox") return;
+    if (event.target.checked) {
+      $$("#cabins input[type=checkbox]").forEach((box) => {
+        if (box !== event.target) box.checked = false;
+      });
     }
+    $$("#cabins .cabin").forEach((cabin) => {
+      cabin.dataset.on = String($("input[type=checkbox]", cabin).checked);
+    });
   });
   // Enter in a field submits the form; save instead of closing the sheet.
   $("#search-form").addEventListener("submit", (event) => {
@@ -906,10 +915,6 @@ destino = "MAD"
 ida = "2026-12-29"
 volta = "2027-01-11"
 adultos = 1
-
-[busca.economica]
-max_brl = 10000
-max_conexoes = 0
 
 [busca.executiva]
 max_brl = 30000
