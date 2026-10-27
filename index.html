@@ -1,0 +1,194 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <title>Passagens</title>
+  <meta name="description" content="Painel do monitor de passagens: buscas, situação e busca na hora.">
+  <meta name="theme-color" content="#0b5cd5">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="default">
+  <meta name="apple-mobile-web-app-title" content="Passagens">
+  <link rel="apple-touch-icon" href="icons/icon-180.png">
+  <link rel="icon" href="icons/icon-192.png">
+  <link rel="manifest" href="manifest.webmanifest">
+  <link rel="stylesheet" href="app.css?v=2">
+</head>
+<body>
+  <header class="topbar">
+    <h1 id="title">Buscas</h1>
+    <button id="refresh" class="icon-button" type="button" aria-label="Atualizar">
+      <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M20 12a8 8 0 1 1-2.34-5.66M20 4v5h-5" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+    </button>
+  </header>
+
+  <main>
+    <div id="banner" class="banner" hidden></div>
+
+    <section id="view-searches" class="view">
+      <div id="searches"></div>
+      <p id="budget-note" class="note"></p>
+      <button id="add" class="primary wide" type="button">+ Nova busca</button>
+    </section>
+
+    <section id="view-status" class="view" hidden>
+      <div class="card">
+        <div class="stat-row">
+          <div><div class="stat-label">Saldo SerpApi</div><div id="balance" class="stat">—</div></div>
+          <div><div class="stat-label">Rodadas automáticas</div><div class="stat small">07:00 e 19:00</div></div>
+        </div>
+        <p id="balance-note" class="note tight"></p>
+      </div>
+      <div class="actions-row">
+        <button id="run-real" class="primary" type="button">Buscar agora</button>
+        <button id="run-test" class="secondary" type="button">Testar sem enviar</button>
+      </div>
+      <p class="note">“Buscar agora” envia e-mail e WhatsApp se achar oferta. Cada rodada gasta até 8 buscas da SerpApi.</p>
+      <h2 class="section-title">Últimas rodadas</h2>
+      <div id="runs"></div>
+    </section>
+
+    <section id="view-settings" class="view" hidden>
+      <form id="settings-form" class="card form" autocomplete="off">
+        <label>Chave de acesso do GitHub
+          <input id="token" type="password" placeholder="github_pat_…" spellcheck="false" autocapitalize="off">
+        </label>
+        <div class="two">
+          <label>Usuário
+            <input id="owner" type="text" spellcheck="false" autocapitalize="off">
+          </label>
+          <label>Repositório
+            <input id="repo" type="text" spellcheck="false" autocapitalize="off">
+          </label>
+        </div>
+        <div class="actions-row">
+          <button class="primary" type="submit">Salvar e testar</button>
+          <button id="forget" class="danger-text" type="button">Apagar chave</button>
+        </div>
+        <p id="settings-result" class="note"></p>
+      </form>
+      <div class="card help">
+        <h2>Como criar a chave (uma vez em cada aparelho)</h2>
+        <ol>
+          <li>Abra <a href="https://github.com/settings/personal-access-tokens/new" target="_blank" rel="noopener">github.com/settings/personal-access-tokens/new</a>.</li>
+          <li><b>Token name:</b> <code>app passagens</code>. <b>Expiration:</b> 1 ano (366 dias).</li>
+          <li><b>Repository access:</b> <i>Only select repositories</i> → escolha o repositório do monitor.</li>
+          <li><b>Permissions → Repository permissions:</b>
+            <ul>
+              <li><b>Actions:</b> Read and write</li>
+              <li><b>Checks:</b> Read-only</li>
+              <li><b>Contents:</b> Read and write</li>
+            </ul>
+          </li>
+          <li>Toque em <b>Generate token</b>, copie e cole acima.</li>
+        </ol>
+        <p class="note">A chave fica guardada só neste aparelho e só dá acesso a esse repositório.</p>
+      </div>
+    </section>
+  </main>
+
+  <nav class="tabbar" aria-label="Seções">
+    <button class="tab" data-view="searches" type="button" aria-current="page">
+      <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M2.5 13.5 21 6l-4.5 15-4-6-6 3 1-4.5-5-0.5z" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/></svg>
+      <span>Buscas</span>
+    </button>
+    <button class="tab" data-view="status" type="button">
+      <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 20V10M10 20V4M16 20v-7M22 20H2" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>
+      <span>Situação</span>
+    </button>
+    <button class="tab" data-view="settings" type="button">
+      <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="3.2" fill="none" stroke="currentColor" stroke-width="1.8"/><path d="M12 2.5v3M12 18.5v3M2.5 12h3M18.5 12h3M5.3 5.3l2.1 2.1M16.6 16.6l2.1 2.1M5.3 18.7l2.1-2.1M16.6 7.4l2.1-2.1" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>
+      <span>Ajustes</span>
+    </button>
+  </nav>
+
+  <dialog id="editor" class="sheet">
+    <form id="search-form" method="dialog" class="form" novalidate>
+      <header class="sheet-head">
+        <button value="cancel" class="link" type="submit" formnovalidate>Cancelar</button>
+        <h2 id="editor-title">Nova busca</h2>
+        <button id="save" class="link strong" type="button">Salvar</button>
+      </header>
+      <div class="sheet-body">
+        <label>Nome
+          <input name="nome" type="text" placeholder="Ex.: Madri fim de ano" required>
+        </label>
+        <div class="two">
+          <label>Origem
+            <input name="origem" type="text" maxlength="3" placeholder="GRU" autocapitalize="characters" spellcheck="false">
+          </label>
+          <label>Destino
+            <input name="destino" type="text" maxlength="3" placeholder="MAD" autocapitalize="characters" spellcheck="false">
+          </label>
+        </div>
+        <p class="note tight">Use o código do aeroporto (3 letras): GRU, GIG, MAD, LIS, CDG, JFK…</p>
+
+        <fieldset>
+          <legend>Ida</legend>
+          <div class="segmented" data-group="ida">
+            <button type="button" data-value="fixa">Data fixa</button>
+            <button type="button" data-value="faixa">Entre duas datas</button>
+          </div>
+          <div class="two">
+            <label><span data-ida-label>Data</span>
+              <input name="ida_de" type="date">
+            </label>
+            <label data-show="ida:faixa">Até
+              <input name="ida_ate" type="date">
+            </label>
+          </div>
+        </fieldset>
+
+        <fieldset>
+          <legend>Volta</legend>
+          <div class="segmented" data-group="volta">
+            <button type="button" data-value="fixa">Data fixa</button>
+            <button type="button" data-value="faixa">Entre datas</button>
+            <button type="button" data-value="dias">Nº de dias</button>
+          </div>
+          <div class="two" data-show="volta:fixa,faixa">
+            <label><span data-volta-label>Data</span>
+              <input name="volta_de" type="date">
+            </label>
+            <label data-show="volta:faixa">Até
+              <input name="volta_ate" type="date">
+            </label>
+          </div>
+          <div class="two" data-show="volta:dias">
+            <label>Mínimo de dias
+              <input name="dias_min" type="number" inputmode="numeric" min="1">
+            </label>
+            <label>Máximo de dias
+              <input name="dias_max" type="number" inputmode="numeric" min="1">
+            </label>
+          </div>
+        </fieldset>
+
+        <fieldset>
+          <legend>Classes e preço máximo (ida e volta, total)</legend>
+          <div id="cabins"></div>
+        </fieldset>
+
+        <div class="two">
+          <label>Adultos
+            <input name="adultos" type="number" inputmode="numeric" min="1" value="1">
+          </label>
+          <label class="switch-row">Busca ativa
+            <input name="ativa" type="checkbox" checked>
+          </label>
+        </div>
+
+        <p id="estimate" class="estimate"></p>
+        <p id="form-error" class="error" role="alert"></p>
+        <p class="note">Todas as classes exigem pelo menos 1 mala despachada gratuita.</p>
+        <button id="delete" class="danger wide" type="button">Excluir busca</button>
+      </div>
+    </form>
+  </dialog>
+
+  <div id="toast" class="toast" role="status" hidden></div>
+
+  <script type="module" src="app.js?v=2"></script>
+</body>
+</html>
