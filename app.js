@@ -26,6 +26,7 @@ const state = {
   searches: [],
   sha: null,
   loaded: false,
+  summaries: [],
   editing: null,
   pollTimer: null,
 };
@@ -377,6 +378,40 @@ function datesSummary(search) {
 
 /* ---------- searches view ---------- */
 
+// Latest run that checked this search (older summaries have no "verificadas":
+// then the latest run with an offer for it counts).
+function latestResult(search) {
+  for (const summary of state.summaries) {
+    const offers = (summary.ofertas || []).filter((offer) => offer.busca === search.nome);
+    const checked = Array.isArray(summary.verificadas)
+      ? summary.verificadas.includes(search.nome)
+      : offers.length > 0;
+    if (checked) return { when: summary.iniciada_em, offers: offers.sort((a, b) => a.preco - b.preco) };
+  }
+  return null;
+}
+
+function resultsHtml(search) {
+  const result = latestResult(search);
+  if (!result) return `<div class="results"><div class="results-head">Ainda não verificada.</div></div>`;
+  const when = result.when ? formatWhen(result.when) : "";
+  const offers = result.offers.slice(0, 3).map((offer) => {
+    const body = `
+      <span class="result-price">${formatBRL(offer.preco)}</span>
+      <span class="result-info">${escapeHtml(offer.classe)} · ${escapeHtml(offer.companhias)}<br>${formatDate(offer.ida, false)} a ${formatDate(offer.volta)}</span>
+      <span class="result-go">${offer.link ? "Comprar ›" : ""}</span>`;
+    return offer.link
+      ? `<a class="result" href="${escapeHtml(offer.link)}" target="_blank" rel="noopener">${body}</a>`
+      : `<div class="result">${body}</div>`;
+  });
+  const extra = result.offers.length > 3 ? `<div class="results-head">+ ${result.offers.length - 3} oferta(s) no e-mail.</div>` : "";
+  return `
+    <div class="results">
+      <div class="results-head">Última verificação: ${when}</div>
+      ${offers.length ? offers.join("") + extra : `<div class="results-none">Nenhuma oferta dentro dos limites.</div>`}
+    </div>`;
+}
+
 function renderSearches() {
   const container = $("#searches");
   if (!state.loaded) {
@@ -403,13 +438,16 @@ function renderSearches() {
           ? "Datas já passaram; não gasta buscas."
           : `${combos} combinação(ões) de datas · ${searchCost} busca(s) por volta completa`;
         return `
-          <button class="card search-card" type="button" data-index="${index}">
-            <div class="search-head"><span class="search-name">${escapeHtml(search.nome)}</span>${tag}</div>
-            <div class="route">${escapeHtml(search.origem)}<span class="arrow">→</span>${escapeHtml(search.destino)}</div>
-            <div class="dates">${escapeHtml(datesSummary(search))}${Number(search.adultos) > 1 ? ` · ${search.adultos} adultos` : ""}</div>
-            <div class="chips">${chips}</div>
-            <div class="cost">${costLine}</div>
-          </button>`;
+          <div class="card search-card">
+            <button class="search-main" type="button" data-index="${index}" aria-label="Editar ${escapeHtml(search.nome)}">
+              <div class="search-head"><span class="search-name">${escapeHtml(search.nome)}</span>${tag}</div>
+              <div class="route">${escapeHtml(search.origem)}<span class="arrow">→</span>${escapeHtml(search.destino)}</div>
+              <div class="dates">${escapeHtml(datesSummary(search))}${Number(search.adultos) > 1 ? ` · ${search.adultos} adultos` : ""}</div>
+              <div class="chips">${chips}</div>
+              <div class="cost">${costLine} · <span class="edit-hint">Editar ›</span></div>
+            </button>
+            ${resultsHtml(search)}
+          </div>`;
       })
       .join("");
   }
@@ -420,7 +458,11 @@ function renderSearches() {
 }
 
 async function loadSearches() {
-  const data = await gh(`/contents/${FILE}?ref=${BRANCH}`);
+  const [data, summaries] = await Promise.all([
+    gh(`/contents/${FILE}?ref=${BRANCH}`),
+    loadRunSummaries().catch(() => []),
+  ]);
+  state.summaries = summaries;
   const text = decodeBase64(data.content);
   let doc;
   try {
@@ -693,6 +735,7 @@ async function loadStatus() {
     loadRunSummaries(),
   ]);
   const runs = data.workflow_runs || [];
+  state.summaries = summaries;
   const byId = new Map(summaries.map((summary) => [String(summary.id), summary]));
 
   const withBalance = summaries.find((summary) => typeof summary.saldo === "number");
@@ -887,6 +930,7 @@ const demoStatus = {
       saldo: 229,
       buscas_usadas: 6,
       combinacoes: "1 de 1",
+      verificadas: ["Madri fim de ano"],
       iniciada_em: new Date(Date.now() - 4 * 3600e3).toISOString(),
       ofertas: [
         { busca: "Madri fim de ano", classe: "Econômica", preco: 7457, companhias: "LATAM, Iberia", ida: "2026-12-29", volta: "2027-01-11", link: "https://example.com" },
