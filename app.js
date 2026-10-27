@@ -638,15 +638,46 @@ async function withSaving(action) {
 
 /* ---------- status view ---------- */
 
-async function runDetails(run) {
+// The monitor publishes a summary of its last runs in status.json on the
+// "status" branch (see the workflow); it is readable with the Contents permission.
+async function loadRunSummaries() {
   try {
-    const { jobs } = await gh(`/actions/runs/${run.id}/jobs`);
-    if (!jobs || !jobs.length) return [];
-    const annotations = await gh(`/check-runs/${jobs[0].id}/annotations`);
-    return (annotations || []).filter((note) => note.annotation_level === "notice");
-  } catch {
-    return null;
+    const data = await gh(`/contents/status.json?ref=status`);
+    const status = JSON.parse(decodeBase64(data.content));
+    return Array.isArray(status.runs) ? status.runs : [];
+  } catch (error) {
+    if (error.code === 404) return [];
+    throw error;
   }
+}
+
+function offerLine(offer) {
+  const dates = `${formatDate(offer.ida, false)} a ${formatDate(offer.volta)}`;
+  const link = offer.link
+    ? ` · <a href="${escapeHtml(offer.link)}" target="_blank" rel="noopener">abrir</a>`
+    : "";
+  return `<div class="run-offer">✈️ <b>${formatBRL(offer.preco)}</b> · ${escapeHtml(offer.classe)} · ${escapeHtml(offer.companhias)} · ${dates}<br><span class="run-offer-search">${escapeHtml(offer.busca)}</span>${link}</div>`;
+}
+
+function summaryLines(run, summary) {
+  if (!summary) {
+    return run.status === "completed"
+      ? [`<div class="run-line">Sem resumo (rodada anterior à atualização do app).</div>`]
+      : [];
+  }
+  const lines = [];
+  if (summary.combinacoes) {
+    lines.push(
+      `<div class="run-line">${escapeHtml(summary.combinacoes)} combinação(ões) de datas pesquisada(s), ${summary.buscas_usadas} busca(s) usada(s).</div>`,
+    );
+  }
+  const offers = Array.isArray(summary.ofertas) ? summary.ofertas : [];
+  offers.slice(0, 4).forEach((offer) => lines.push(offerLine(offer)));
+  if (offers.length > 4) lines.push(`<div class="run-line">+ ${offers.length - 4} oferta(s) no e-mail.</div>`);
+  if (!offers.length && summary.combinacoes) lines.push(`<div class="run-line">Nenhuma oferta dentro dos limites.</div>`);
+  (summary.avisos || []).forEach((note) => lines.push(`<div class="run-warn">${escapeHtml(note)}</div>`));
+  (summary.erros || []).forEach((note) => lines.push(`<div class="run-error">${escapeHtml(note)}</div>`));
+  return lines;
 }
 
 function runBadge(run) {
@@ -657,40 +688,26 @@ function runBadge(run) {
 }
 
 async function loadStatus() {
-  const data = await gh(`/actions/workflows/${WORKFLOW}/runs?per_page=6&branch=${BRANCH}`);
+  const [data, summaries] = await Promise.all([
+    gh(`/actions/workflows/${WORKFLOW}/runs?per_page=6&branch=${BRANCH}`),
+    loadRunSummaries(),
+  ]);
   const runs = data.workflow_runs || [];
-  const details = await Promise.all(runs.map((run) => (run.status === "completed" ? runDetails(run) : [])));
+  const byId = new Map(summaries.map((summary) => [String(summary.id), summary]));
 
-  let balanceShown = false;
-  $("#balance").textContent = "—";
-  $("#balance-note").textContent = "Aparece depois da primeira rodada desta versão do monitor.";
-  runs.forEach((run, index) => {
-    const notes = details[index] || [];
-    const balance = notes.find((note) => note.title === "Saldo SerpApi");
-    if (balance && !balanceShown) {
-      balanceShown = true;
-      $("#balance").textContent = balance.message;
-      $("#balance-note").textContent = `No início da rodada de ${formatWhen(run.run_started_at || run.created_at)}. O plano gratuito tem 250 por mês.`;
-    }
-  });
+  const withBalance = summaries.find((summary) => typeof summary.saldo === "number");
+  $("#balance").textContent = withBalance ? String(withBalance.saldo) : "—";
+  $("#balance-note").textContent = withBalance
+    ? `No início da rodada de ${formatWhen(withBalance.iniciada_em)}. O plano gratuito tem 250 por mês.`
+    : "Aparece depois da primeira rodada desta versão do monitor.";
 
   $("#runs").innerHTML = runs.length
     ? runs
-        .map((run, index) => {
-          const notes = details[index];
-          const lines = [];
-          if (notes === null) {
-            lines.push(`<div class="run-line">Detalhes indisponíveis (confira a permissão “Checks” da chave).</div>`);
-          } else {
-            for (const note of notes) {
-              if (note.title === "Rodada") lines.push(`<div class="run-line">${escapeHtml(note.message)}</div>`);
-              if (note.title === "Oferta") lines.push(`<div class="run-offer">✈️ ${escapeHtml(note.message)}</div>`);
-            }
-            if (run.status === "completed" && run.conclusion === "success" && !notes.some((note) => note.title === "Oferta")) {
-              lines.push(`<div class="run-line">Nenhuma oferta dentro dos limites.</div>`);
-            }
-          }
-          const kind = run.event === "schedule" ? "Automática" : "Manual";
+        .map((run) => {
+          const summary = byId.get(String(run.id));
+          const lines = summaryLines(run, summary);
+          const kind =
+            (run.event === "schedule" ? "Automática" : "Manual") + (summary && summary.dry_run ? " · teste, sem envio" : "");
           return `
             <div class="card run">
               <div class="run-head">
@@ -862,13 +879,24 @@ const demoRuns = [
   { id: 2, status: "completed", conclusion: "success", event: "schedule", created_at: new Date(Date.now() - 4 * 3600e3).toISOString(), html_url: "https://github.com" },
   { id: 1, status: "completed", conclusion: "failure", event: "schedule", created_at: new Date(Date.now() - 16 * 3600e3).toISOString(), html_url: "https://github.com" },
 ];
-const demoNotes = {
-  2: [
-    { annotation_level: "notice", title: "Saldo SerpApi", message: "229" },
-    { annotation_level: "notice", title: "Rodada", message: "1 de 1 combinação(ões) pesquisada(s), 6 busca(s) usada(s)" },
-    { annotation_level: "notice", title: "Oferta", message: "Madri fim de ano | Econômica | R$ 7.457 | LATAM, Iberia | 29/12/2026 a 11/01/2027" },
+const demoStatus = {
+  runs: [
+    {
+      id: 2,
+      dry_run: false,
+      saldo: 229,
+      buscas_usadas: 6,
+      combinacoes: "1 de 1",
+      iniciada_em: new Date(Date.now() - 4 * 3600e3).toISOString(),
+      ofertas: [
+        { busca: "Madri fim de ano", classe: "Econômica", preco: 7457, companhias: "LATAM, Iberia", ida: "2026-12-29", volta: "2027-01-11", link: "https://example.com" },
+        { busca: "Madri fim de ano", classe: "Executiva", preco: 18674, companhias: "Iberia", ida: "2026-12-29", volta: "2027-01-11", link: "https://example.com" },
+      ],
+      avisos: ["WhatsApp não configurado; canal ignorado."],
+      erros: [],
+    },
+    { id: 1, erros: ["Resend rejected the email with HTTP 403"], avisos: [], ofertas: [], iniciada_em: new Date(Date.now() - 16 * 3600e3).toISOString() },
   ],
-  1: [{ annotation_level: "warning", title: "x", message: "y" }],
 };
 
 async function demoApi(path, method, body) {
@@ -884,10 +912,7 @@ async function demoApi(path, method, body) {
     return { content: encodeBase64(demoFile), sha: `demo-${demoSha}` };
   }
   if (path.startsWith(`/actions/workflows/${WORKFLOW}/runs`)) return { workflow_runs: demoRuns };
-  const jobs = path.match(/^\/actions\/runs\/(\d+)\/jobs$/);
-  if (jobs) return { jobs: [{ id: Number(jobs[1]) }] };
-  const notes = path.match(/^\/check-runs\/(\d+)\/annotations$/);
-  if (notes) return demoNotes[notes[1]] || [];
+  if (path.startsWith("/contents/status.json")) return { content: encodeBase64(JSON.stringify(demoStatus)) };
   if (path.endsWith("/dispatches")) return null;
   throw new AppError(`demo: caminho desconhecido ${path}`, 404);
 }

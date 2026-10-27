@@ -13,7 +13,7 @@
   <link rel="apple-touch-icon" href="icons/icon-180.png">
   <link rel="icon" href="icons/icon-192.png">
   <link rel="manifest" href="manifest.webmanifest">
-  <link rel="stylesheet" href="app.css?v=2">
+  <link rel="stylesheet" href="app.css?v=3">
 </head>
 <body>
   <header class="topbar">
@@ -36,7 +36,7 @@
       <div class="card">
         <div class="stat-row">
           <div><div class="stat-label">Saldo SerpApi</div><div id="balance" class="stat">—</div></div>
-          <div><div class="stat-label">Rodadas automáticas</div><div class="stat small">07:00 e 19:00</div></div>
+          <div><div class="stat-label">Rodadas automáticas</div><div class="stat small">~07:20 e ~19:20</div></div>
         </div>
         <p id="balance-note" class="note tight"></p>
       </div>
@@ -72,16 +72,10 @@
         <h2>Como criar a chave (uma vez em cada aparelho)</h2>
         <ol>
           <li>Abra <a href="https://github.com/settings/personal-access-tokens/new" target="_blank" rel="noopener">github.com/settings/personal-access-tokens/new</a>.</li>
-          <li><b>Token name:</b> <code>app passagens</code>. <b>Expiration:</b> 1 ano (366 dias).</li>
+          <li><b>Token name:</b> <code>app passagens</code>. <b>Expiration:</b> a que preferir (ex.: <i>No expiration</i>).</li>
           <li><b>Repository access:</b> <i>Only select repositories</i> → escolha o repositório do monitor.</li>
-          <li><b>Permissions → Repository permissions:</b>
-            <ul>
-              <li><b>Actions:</b> Read and write</li>
-              <li><b>Checks:</b> Read-only</li>
-              <li><b>Contents:</b> Read and write</li>
-            </ul>
-          </li>
-          <li>Toque em <b>Generate token</b>, copie e cole acima.</li>
+          <li><b>Permissions → Add permissions:</b> marque <b>Actions</b> e <b>Contents</b> e mude as duas para <b>Read and write</b> (o Metadata entra sozinho).</li>
+          <li>Toque em <b>Generate token</b> e confirme; copie a chave (<code>github_pat_…</code>) e cole acima.</li>
         </ol>
         <p class="note">A chave fica guardada só neste aparelho e só dá acesso a esse repositório.</p>
       </div>
@@ -189,6 +183,6 @@
 
   <div id="toast" class="toast" role="status" hidden></div>
 
-  <script type="module" src="app.js?v=2"></script>
+  <script type="module" src="app.js?v=3"></script>
 </body>
 </html>

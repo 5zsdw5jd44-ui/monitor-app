@@ -183,6 +183,10 @@ button:disabled { opacity: 0.5; }
 .run-line { font-size: 14px; color: var(--muted); }
 .run-offer { font-size: 14px; background: var(--ok-soft); color: var(--ok); border-radius: 8px; padding: 6px 10px; }
 .run a { font-size: 14px; }
+.run-offer a { color: inherit; font-weight: 650; }
+.run-offer-search { opacity: 0.8; font-size: 13px; }
+.run-warn { font-size: 14px; background: var(--warn-soft); color: var(--warn); border-radius: 8px; padding: 6px 10px; }
+.run-error { font-size: 14px; background: var(--bad-soft); color: var(--bad); border-radius: 8px; padding: 6px 10px; }
 .badge { font-size: 12px; font-weight: 700; padding: 3px 8px; border-radius: 6px; }
 .badge.ok { background: var(--ok-soft); color: var(--ok); }
 .badge.bad { background: var(--bad-soft); color: var(--bad); }
