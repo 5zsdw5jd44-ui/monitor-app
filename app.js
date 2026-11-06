@@ -27,6 +27,7 @@ const state = {
   sha: null,
   loaded: false,
   summaries: [],
+  history: {},
   editing: null,
   pollTimer: null,
 };
@@ -414,6 +415,65 @@ function resultsHtml(search) {
     </div>`;
 }
 
+// Cheapest offer per day (São Paulo date), kept by the monitor in
+// status.json "historico". Days without an offer under the limit are gaps.
+function historyHtml(search) {
+  const days = Object.entries(state.history[search.nome] || {})
+    .filter(([day, price]) => isDate(day) && Number.isFinite(price))
+    .sort(([a], [b]) => a.localeCompare(b));
+  const head = `<div class="history-head"><span class="search-name">Histórico de preços</span><span class="history-sub">menor preço achado por dia</span></div>`;
+  if (!days.length) {
+    return `<div class="card history-card">${head}<div class="results-none">Ainda sem preços. O gráfico aparece depois da primeira oferta dentro do limite.</div></div>`;
+  }
+  const first = days[0][0];
+  const last = days[days.length - 1][0];
+  const offset = (day) => (Date.parse(`${day}T00:00:00Z`) - Date.parse(`${first}T00:00:00Z`)) / 864e5;
+  const span = Math.max(1, offset(last));
+  const prices = days.map(([, price]) => price);
+  const low = Math.min(...prices);
+  const high = Math.max(...prices);
+  const pad = Math.max((high - low) * 0.15, high * 0.02, 100);
+  const yMin = low - pad;
+  const yMax = high + pad;
+  const W = 320, H = 170, L = 8, R = 8, T = 22, B = 40;
+  const x = (day) => L + (days.length === 1 ? (W - L - R) / 2 : (offset(day) / span) * (W - L - R));
+  const y = (price) => T + ((yMax - price) / (yMax - yMin)) * (H - T - B);
+  const points = days.map(([day, price]) => [x(day), y(price), day, price]);
+  const path = points.map(([px, py], i) => `${i ? "L" : "M"}${px.toFixed(1)},${py.toFixed(1)}`).join(" ");
+  const area = days.length > 1
+    ? `<path class="h-area" d="${path} L${points[points.length - 1][0].toFixed(1)},${H - 20} L${points[0][0].toFixed(1)},${H - 20} Z"/>`
+    : "";
+  const lowIndex = prices.indexOf(low);
+  // The lowest price goes under its dot, the latest one above it.
+  const label = ([px, py, , price], cls, below) => {
+    const anchor = px < 60 ? "start" : px > W - 60 ? "end" : "middle";
+    return `<text class="${cls}" x="${px.toFixed(1)}" y="${(below ? py + 18 : py - 9).toFixed(1)}" text-anchor="${anchor}">${formatBRL(price)}</text>`;
+  };
+  const dots = points
+    .map(([px, py, day, price], i) => `<circle class="h-dot${i === lowIndex ? " low" : ""}" cx="${px.toFixed(1)}" cy="${py.toFixed(1)}" r="${i === lowIndex ? 4.5 : 3}"><title>${formatDate(day)}: ${formatBRL(price)}</title></circle>`)
+    .join("");
+  const labels = [label(points[lowIndex], "h-label low", points.length > 1)];
+  if (points.length > 1 && lowIndex !== points.length - 1) labels.push(label(points[points.length - 1], "h-label"));
+  const latest = prices[prices.length - 1];
+  return `
+    <div class="card history-card">
+      ${head}
+      <svg class="history-chart" viewBox="0 0 ${W} ${H}" role="img" aria-label="Menor preço por dia de ${formatDate(first)} a ${formatDate(last)}">
+        <line class="h-base" x1="${L}" x2="${W - R}" y1="${H - 20}" y2="${H - 20}"/>
+        ${area}
+        <path class="h-line" d="${path}"/>
+        ${dots}
+        ${labels.join("")}
+        <text class="h-axis" x="${L}" y="${H - 6}" text-anchor="start">${formatDate(first, false)}</text>
+        ${days.length > 1 ? `<text class="h-axis" x="${W - R}" y="${H - 6}" text-anchor="end">${formatDate(last, false)}</text>` : ""}
+      </svg>
+      <div class="history-stats">
+        <span>Menor: <b class="ok">${formatBRL(low)}</b> em ${formatDate(days[lowIndex][0], false)}</span>
+        <span>Último: <b>${formatBRL(latest)}</b></span>
+      </div>
+    </div>`;
+}
+
 function renderSearches() {
   const container = $("#searches");
   if (!state.loaded) {
@@ -440,6 +500,7 @@ function renderSearches() {
           ? "Datas já passaram; não gasta buscas."
           : `${combos} combinação(ões) de datas · ${searchCost} busca(s) por volta completa`;
         return `
+          <div class="search-row">
           <div class="card search-card">
             <button class="search-main" type="button" data-index="${index}" aria-label="Editar ${escapeHtml(search.nome)}">
               <div class="search-head"><span class="search-name">${escapeHtml(search.nome)}</span>${tag}</div>
@@ -449,6 +510,8 @@ function renderSearches() {
               <div class="cost">${costLine} · <span class="edit-hint">Editar ›</span></div>
             </button>
             ${resultsHtml(search)}
+          </div>
+          ${historyHtml(search)}
           </div>`;
       })
       .join("");
@@ -688,6 +751,7 @@ async function loadRunSummaries() {
   try {
     const data = await gh(`/contents/status.json?ref=status`);
     const status = JSON.parse(decodeBase64(data.content));
+    state.history = status.historico && typeof status.historico === "object" ? status.historico : {};
     return Array.isArray(status.runs) ? status.runs : [];
   } catch (error) {
     if (error.code === 404) return [];
@@ -928,6 +992,9 @@ const demoRuns = [
   { id: 1, status: "completed", conclusion: "failure", event: "schedule", created_at: new Date(Date.now() - 16 * 3600e3).toISOString(), html_url: "https://github.com" },
 ];
 const demoStatus = {
+  historico: {
+    "Madri fim de ano": { "2026-10-27": 23479, "2026-10-28": 22098, "2026-10-29": 19459, "2026-10-30": 19575, "2026-10-31": 19744, "2026-11-02": 20835, "2026-11-04": 21900, "2026-11-05": 20410 },
+  },
   runs: [
     {
       id: 2,

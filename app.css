@@ -120,7 +120,29 @@ main { max-width: 720px; margin: 0 auto; padding: 4px 16px 24px; }
   box-shadow: var(--shadow);
 }
 
-.search-card { display: grid; gap: 12px; }
+.search-card { display: grid; gap: 12px; align-content: start; }
+#searches { display: grid; gap: 16px; }
+.search-row { display: grid; gap: 12px; }
+.history-card { display: grid; gap: 8px; align-content: start; }
+.history-head { display: flex; align-items: baseline; justify-content: space-between; gap: 8px; flex-wrap: wrap; }
+.history-sub { font-size: 13px; color: var(--muted); }
+.history-chart { width: 100%; height: auto; display: block; overflow: visible; }
+.history-chart .h-base { stroke: var(--line); stroke-width: 1; }
+.history-chart .h-line { fill: none; stroke: var(--accent); stroke-width: 2; stroke-linejoin: round; stroke-linecap: round; }
+.history-chart .h-area { fill: var(--accent-soft); opacity: 0.7; }
+.history-chart .h-dot { fill: var(--surface); stroke: var(--accent); stroke-width: 2; }
+.history-chart .h-dot.low { fill: var(--ok); stroke: var(--ok); }
+.history-chart .h-label { font-size: 11px; font-weight: 650; fill: var(--text); }
+.history-chart .h-label.low { fill: var(--ok); }
+.history-chart .h-axis { font-size: 11px; fill: var(--muted); }
+.history-stats { display: flex; justify-content: space-between; gap: 8px; flex-wrap: wrap; font-size: 13px; color: var(--muted); }
+.history-stats b { color: var(--text); }
+.history-stats b.ok { color: var(--ok); }
+@media (min-width: 760px) {
+  main { max-width: 1100px; }
+  #view-status, #view-settings, #view-searches > :not(#searches) { width: 100%; max-width: 688px; margin: 0 auto; }
+  .search-row { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); align-items: stretch; }
+}
 .search-main {
   display: grid;
   gap: 8px;
