@@ -389,7 +389,14 @@ function latestResult(search) {
     const checked = Array.isArray(summary.verificadas)
       ? summary.verificadas.includes(search.nome)
       : offers.length > 0;
-    if (checked) return { when: summary.iniciada_em, offers: offers.sort((a, b) => a.preco - b.preco) };
+    if (checked) {
+      const reasons = (summary.motivos || {})[search.nome];
+      return {
+        when: summary.iniciada_em,
+        offers: offers.sort((a, b) => a.preco - b.preco),
+        reasons: Array.isArray(reasons) ? reasons : [],
+      };
+    }
   }
   return null;
 }
@@ -408,10 +415,13 @@ function resultsHtml(search) {
       : `<div class="result">${body}</div>`;
   });
   const extra = result.offers.length > 2 ? `<div class="results-head">+ ${result.offers.length - 2} oferta(s) no e-mail.</div>` : "";
+  // Why the monitor found nothing (summaries since 20/11/2026).
+  const reasons = result.reasons.map((text) => `<div class="results-reason">${escapeHtml(text)}</div>`).join("");
   return `
     <div class="results">
       <div class="results-head">Última verificação: ${when}</div>
       ${offers.length ? offers.join("") + extra : `<div class="results-none">Nenhuma oferta dentro dos limites.</div>`}
+      ${reasons}
     </div>`;
 }
 
@@ -783,6 +793,11 @@ function summaryLines(run, summary) {
   offers.slice(0, 4).forEach((offer) => lines.push(offerLine(offer)));
   if (offers.length > 4) lines.push(`<div class="run-line">+ ${offers.length - 4} oferta(s) no e-mail.</div>`);
   if (!offers.length && summary.combinacoes) lines.push(`<div class="run-line">Nenhuma oferta dentro dos limites.</div>`);
+  Object.entries(summary.motivos || {}).forEach(([name, reasons]) =>
+    (Array.isArray(reasons) ? reasons : []).forEach((text) =>
+      lines.push(`<div class="run-line">${escapeHtml(name)} — ${escapeHtml(text)}</div>`),
+    ),
+  );
   (summary.avisos || []).forEach((note) => lines.push(`<div class="run-warn">${escapeHtml(note)}</div>`));
   (summary.erros || []).forEach((note) => lines.push(`<div class="run-error">${escapeHtml(note)}</div>`));
   return lines;
@@ -1005,9 +1020,11 @@ const demoStatus = {
       verificadas: ["Madri fim de ano"],
       iniciada_em: new Date(Date.now() - 4 * 3600e3).toISOString(),
       ofertas: [
-        { busca: "Madri fim de ano", classe: "Econômica", preco: 7457, companhias: "LATAM, Iberia", ida: "2026-12-29", volta: "2027-01-11", link: "https://example.com" },
         { busca: "Madri fim de ano", classe: "Executiva", preco: 18674, companhias: "Iberia", ida: "2026-12-29", volta: "2027-01-11", link: "https://example.com" },
       ],
+      motivos: {
+        "Madri fim de ano": ["Econômica 29/12 a 11/01: as tarifas abaixo do limite (a partir de R$ 6.950) não incluem mala despachada grátis."],
+      },
       avisos: ["WhatsApp não configurado; canal ignorado."],
       erros: [],
     },

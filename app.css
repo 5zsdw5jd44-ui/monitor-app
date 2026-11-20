@@ -158,6 +158,7 @@ main { max-width: 720px; margin: 0 auto; padding: 4px 16px 24px; }
 .results { border-top: 1px solid var(--line); padding-top: 10px; display: grid; gap: 8px; }
 .results-head { font-size: 13px; color: var(--muted); }
 .results-none { font-size: 14px; color: var(--muted); }
+.results-reason { font-size: 13px; color: var(--warn, #e0b44c); margin-top: 6px; line-height: 1.35; }
 .result {
   display: grid;
   grid-template-columns: auto 1fr auto;
